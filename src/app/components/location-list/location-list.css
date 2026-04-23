@@ -1,0 +1,80 @@
+.location-list {
+  padding: 16px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.location-item {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 4px;
+}
+
+.location-item:hover {
+  background: #f1f5f9;
+}
+
+.location-item.selected {
+  background: #eff6ff;
+  outline: 1px solid #3b82f6;
+}
+
+.location-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.location-description {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.selected-info {
+  margin-top: 16px;
+  padding: 14px;
+  background: #eff6ff;
+  border-radius: 8px;
+  border: 1px solid #bfdbfe;
+}
+
+.selected-info h4 {
+  margin: 0 0 6px 0;
+  font-size: 15px;
+  color: #1e40af;
+}
+
+.selected-info p {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.selected-info button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #3b82f6;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.selected-info button:hover {
+  background: #2563eb;
+}

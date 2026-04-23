@@ -1,0 +1,22 @@
+<div class="location-list">
+  <h3>Locations ({{ mapService.locationCount() }})</h3>
+
+  @for (location of mapService.locations(); track location.name) {
+    <div
+      class="location-item"
+      [class.selected]="isSelected(location)"
+      (click)="selectLocation(location)"
+    >
+      <span class="location-name">{{ location.name }}</span>
+      <span class="location-description">{{ location.description }}</span>
+    </div>
+  }
+
+  @if (mapService.selectedLocation(); as selected) {
+    <div class="selected-info">
+      <h4>{{ selected.name }}</h4>
+      <p>{{ selected.description }}</p>
+      <button (click)="mapService.resetView()">Reset View</button>
+    </div>
+  }
+</div>

@@ -1,0 +1,16 @@
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1>Angular Map</h1>
+    </div>
+    <app-style-switcher
+      [styles]="mapStyles"
+      [activeStyle]="activeStyle()"
+      (styleChanged)="onStyleChanged($event)"
+    />
+    <app-location-list />
+  </aside>
+  <main class="map-area">
+    <app-map />
+  </main>
+</div>

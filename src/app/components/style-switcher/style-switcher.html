@@ -1,0 +1,13 @@
+<div class="style-switcher">
+  <h3>Map Style</h3>
+  <div class="style-options">
+    @for (style of styles(); track style.url) {
+      <button
+        [class.active]="style.url === activeStyle()"
+        (click)="selectStyle(style.url)"
+      >
+        {{ style.name }}
+      </button>
+    }
+  </div>
+</div>
