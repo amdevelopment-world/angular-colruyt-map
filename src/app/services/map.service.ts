@@ -31,40 +31,33 @@ export class MapService {
 
   async loadColruytLocations() {
     const CACHE_KEY = 'colruyt_locations';
+    const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
     // Load from localStorage immediately for instant display
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
-      const { locations } = JSON.parse(cached);
+      const { timestamp, locations } = JSON.parse(cached);
       this.locations.set(locations);
       if (this.map) this.addMarkers();
+
+      // Skip fetch if cache is still fresh
+      if (Date.now() - timestamp < CACHE_TTL) return;
     }
 
-    // Always fetch fresh data in the background (BE + LU + FR)
-    const query = '[out:json];area["ISO3166-1"="BE"][admin_level=2]->.be;area["ISO3166-1"="LU"][admin_level=2]->.lu;area["ISO3166-1"="FR"][admin_level=2]->.fr;(nwr["brand"="Colruyt"](area.be);nwr["brand"="Colruyt"](area.lu);nwr["brand"="Colruyt"](area.fr);nwr["name"~"Colruyt",i](area.be);nwr["name"~"Colruyt",i](area.lu);nwr["name"~"Colruyt",i](area.fr););out center;';
+    // Fetch from Colruyt Group's official API
     try {
-      const response = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        body: `data=${encodeURIComponent(query)}`,
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-      });
+      const response = await fetch('https://ecgplacesmw.colruytgroup.com/ecgplacesmw/v3/nl/places/filter/clp-places');
       if (response.ok) {
         const data = await response.json();
-        const loadedLocations = data.elements
-          .map((el: any) => {
-            const lat = el.lat || el.center?.lat;
-            const lon = el.lon || el.center?.lon;
-            if (!lat || !lon) return null;
-            const isStore = el.tags?.shop || el.tags?.brand === 'Colruyt';
-            return {
-              name: el.tags?.name || 'Colruyt',
-              longitude: lon,
-              latitude: lat,
-              description: [el.tags?.['addr:street'], el.tags?.['addr:city']].filter(Boolean).join(', ') || (isStore ? 'Colruyt Store' : 'Colruyt Group'),
-              type: isStore ? 'store' : 'distribution' as LocationType
-            };
-          })
-          .filter((l: any) => l !== null);
+        const loadedLocations = data
+          .filter((place: any) => place.geoCoordinates?.latitude && place.geoCoordinates?.longitude)
+          .map((place: any) => ({
+            name: place.commercialName || 'Colruyt',
+            longitude: place.geoCoordinates.longitude,
+            latitude: place.geoCoordinates.latitude,
+            description: [place.address?.streetName, place.address?.houseNumber, place.address?.postalcode, place.address?.cityName].filter(Boolean).join(' '),
+            type: 'store' as LocationType
+          }));
         this.locations.set(loadedLocations);
 
         // Save to localStorage
@@ -77,7 +70,7 @@ export class MapService {
           this.addMarkers();
         }
       } else {
-        console.error('Overpass API Error:', response.status, response.statusText);
+        console.error('Colruyt API Error:', response.status, response.statusText);
       }
     } catch (e) {
       console.error('Failed to load Colruyt locations', e);
