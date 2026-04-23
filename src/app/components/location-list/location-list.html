@@ -1,14 +1,21 @@
 <div class="location-list">
   <h3>Locations ({{ mapService.locationCount() }})</h3>
 
-  @for (location of mapService.locations(); track location.name) {
+  @for (location of mapService.locations(); track location.name; let i = $index) {
     <div
       class="location-item"
       [class.selected]="isSelected(location)"
+      [class.store]="location.type === 'store'"
+      [class.distribution]="location.type === 'distribution'"
+      [id]="'location-' + i"
       (click)="selectLocation(location)"
     >
-      <span class="location-name">{{ location.name }}</span>
+      <div class="location-header">
+        <span class="type-dot" [class.store]="location.type === 'store'" [class.distribution]="location.type === 'distribution'"></span>
+        <span class="location-name">{{ location.name }}</span>
+      </div>
       <span class="location-description">{{ location.description }}</span>
+      <span class="location-type">{{ location.type === 'store' ? '🛒 Store' : '🏭 Distribution / Office' }}</span>
     </div>
   }
 

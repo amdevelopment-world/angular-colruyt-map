@@ -1,3 +1,11 @@
+:host {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .location-list {
   padding: 16px;
   flex: 1;
@@ -21,15 +29,50 @@ h3 {
   cursor: pointer;
   transition: all 0.2s;
   margin-bottom: 4px;
+  border-left: 3px solid transparent;
+}
+
+.location-item.store {
+  border-left-color: #f97316;
+}
+
+.location-item.distribution {
+  border-left-color: #3b82f6;
 }
 
 .location-item:hover {
   background: #f1f5f9;
 }
 
-.location-item.selected {
+.location-item.selected.store {
+  background: #fff7ed;
+  outline: 1px solid #f97316;
+}
+
+.location-item.selected.distribution {
   background: #eff6ff;
   outline: 1px solid #3b82f6;
+}
+
+.location-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.type-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.type-dot.store {
+  background: #f97316;
+}
+
+.type-dot.distribution {
+  background: #3b82f6;
 }
 
 .location-name {
@@ -42,6 +85,14 @@ h3 {
   font-size: 12px;
   color: #94a3b8;
   margin-top: 2px;
+  padding-left: 16px;
+}
+
+.location-type {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+  padding-left: 16px;
 }
 
 .selected-info {

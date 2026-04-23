@@ -1,11 +1,14 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { Map, Marker, LngLat } from 'maplibre-gl';
 
+export type LocationType = 'store' | 'distribution';
+
 export interface MapLocation {
   name: string;
   longitude: number;
   latitude: number;
   description: string;
+  type: LocationType;
 }
 
 @Injectable({
@@ -28,21 +31,17 @@ export class MapService {
 
   async loadColruytLocations() {
     const CACHE_KEY = 'colruyt_locations';
-    const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
-    // Try loading from localStorage first
+    // Load from localStorage immediately for instant display
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
-      const { timestamp, locations } = JSON.parse(cached);
-      if (Date.now() - timestamp < CACHE_TTL) {
-        this.locations.set(locations);
-        if (this.map) this.addMarkers();
-        return;
-      }
+      const { locations } = JSON.parse(cached);
+      this.locations.set(locations);
+      if (this.map) this.addMarkers();
     }
 
-    // Cache expired or missing — fetch from Overpass API
-    const query = '[out:json];area["ISO3166-1"="BE"][admin_level=2]->.searchArea;(node["brand"="Colruyt"](area.searchArea);way["brand"="Colruyt"](area.searchArea);relation["brand"="Colruyt"](area.searchArea););out center;';
+    // Always fetch fresh data in the background (BE + LU + FR)
+    const query = '[out:json];area["ISO3166-1"="BE"][admin_level=2]->.be;area["ISO3166-1"="LU"][admin_level=2]->.lu;area["ISO3166-1"="FR"][admin_level=2]->.fr;(nwr["brand"="Colruyt"](area.be);nwr["brand"="Colruyt"](area.lu);nwr["brand"="Colruyt"](area.fr);nwr["name"~"Colruyt",i](area.be);nwr["name"~"Colruyt",i](area.lu);nwr["name"~"Colruyt",i](area.fr););out center;';
     try {
       const response = await fetch('https://overpass-api.de/api/interpreter', {
         method: 'POST',
@@ -56,11 +55,13 @@ export class MapService {
             const lat = el.lat || el.center?.lat;
             const lon = el.lon || el.center?.lon;
             if (!lat || !lon) return null;
+            const isStore = el.tags?.shop || el.tags?.brand === 'Colruyt';
             return {
               name: el.tags?.name || 'Colruyt',
               longitude: lon,
               latitude: lat,
-              description: [el.tags?.['addr:street'], el.tags?.['addr:city']].filter(Boolean).join(', ') || 'Colruyt Store'
+              description: [el.tags?.['addr:street'], el.tags?.['addr:city']].filter(Boolean).join(', ') || (isStore ? 'Colruyt Store' : 'Colruyt Group'),
+              type: isStore ? 'store' : 'distribution' as LocationType
             };
           })
           .filter((l: any) => l !== null);
@@ -116,7 +117,8 @@ export class MapService {
     this.clearMarkers();
 
     for (const location of this.locations()) {
-      const marker = new Marker({ color: '#f97316' }) // Colruyt orange-ish
+      const color = location.type === 'store' ? '#f97316' : '#3b82f6'; // orange for stores, blue for distribution
+      const marker = new Marker({ color })
         .setLngLat([location.longitude, location.latitude])
         .addTo(this.map!);
 

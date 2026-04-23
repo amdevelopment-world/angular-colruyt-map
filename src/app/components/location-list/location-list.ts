@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, effect } from '@angular/core';
 import { MapService, MapLocation } from '../../services/map.service';
 
 @Component({
@@ -9,6 +9,19 @@ import { MapService, MapLocation } from '../../services/map.service';
 })
 export class LocationListComponent {
   readonly mapService = inject(MapService);
+
+  constructor() {
+    effect(() => {
+      const selected = this.mapService.selectedLocation();
+      if (selected) {
+        const index = this.mapService.locations().findIndex(l => l.name === selected.name);
+        if (index >= 0) {
+          const el = document.getElementById('location-' + index);
+          el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    });
+  }
 
   selectLocation(location: MapLocation) {
     this.mapService.flyTo(location);
