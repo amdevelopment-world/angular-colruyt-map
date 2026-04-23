@@ -40,25 +40,11 @@ export class MapService {
   }
 
   async loadColruytLocations() {
-    const CACHE_KEY = 'colruyt_locations';
-    const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-
-    // Load from localStorage immediately for instant display
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (cached) {
-      const { timestamp, locations } = JSON.parse(cached);
-      this.locations.set(locations);
-      if (this.map) this.addMarkers();
-
-      // Skip fetch if cache is still fresh
-      if (Date.now() - timestamp < CACHE_TTL) return;
-    }
-
-    // Fetch from Colruyt Group's official API
     try {
       const response = await fetch('https://ecgplacesmw.colruytgroup.com/ecgplacesmw/v3/nl/places/filter/clp-places');
       if (response.ok) {
         const data = await response.json();
+        console.log('Colruyt API response:', data);
         const loadedLocations = data
           .filter((place: any) => place.geoCoordinates?.latitude && place.geoCoordinates?.longitude)
           .map((place: any) => ({
@@ -69,12 +55,6 @@ export class MapService {
             type: 'store' as LocationType
           }));
         this.locations.set(loadedLocations);
-
-        // Save to localStorage
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-          timestamp: Date.now(),
-          locations: loadedLocations
-        }));
         
         if (this.map) {
           this.addMarkers();
@@ -128,12 +108,17 @@ export class MapService {
     this.clearMarkers();
 
     for (const location of this.locations()) {
-      const color = location.type === 'store' ? '#f97316' : '#3b82f6'; // orange for stores, blue for distribution
-      const marker = new Marker({ color })
+      const el = document.createElement('img');
+      el.src = 'colruyt_pin.png';
+      el.style.width = '32px';
+      el.style.height = '32px';
+      el.style.cursor = 'pointer';
+
+      const marker = new Marker({ element: el })
         .setLngLat([location.longitude, location.latitude])
         .addTo(this.map!);
 
-      marker.getElement().addEventListener('click', () => {
+      el.addEventListener('click', () => {
         this.flyTo(location);
       });
 
