@@ -107,51 +107,68 @@ export class MapService {
   private setupClustering() {
     if (!this.map) return;
 
-    // Load the Colruyt pin image
+    // Add clustered GeoJSON source
+    this.map.addSource('colruyt-stores', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+      cluster: true,
+      clusterMaxZoom: 12,
+      clusterRadius: 30
+    });
+
+    // Cluster circles
+    this.map.addLayer({
+      id: 'clusters',
+      type: 'circle',
+      source: 'colruyt-stores',
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-color': '#e8751a',
+        'circle-radius': ['step', ['get', 'point_count'], 18, 10, 24, 50, 32],
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#fff'
+      }
+    });
+
+    // Cluster count labels
+    this.map.addLayer({
+      id: 'cluster-count',
+      type: 'symbol',
+      source: 'colruyt-stores',
+      filter: ['has', 'point_count'],
+      layout: {
+        'text-field': '{point_count_abbreviated}',
+        'text-size': 13
+      },
+      paint: {
+        'text-color': '#ffffff'
+      }
+    });
+
+    // Individual store pins — start with circle fallback
+    this.map.addLayer({
+      id: 'unclustered-point',
+      type: 'circle',
+      source: 'colruyt-stores',
+      filter: ['!', ['has', 'point_count']],
+      paint: {
+        'circle-color': '#e8751a',
+        'circle-radius': 8,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#fff'
+      }
+    });
+
+    this.sourceReady = true;
+    this.updateSource();
+
+    // Load the Colruyt pin image and upgrade the layer
     this.map.loadImage('/colruyt_pin.png').then(({ data }) => {
       if (!this.map!.hasImage('colruyt-pin')) {
         this.map!.addImage('colruyt-pin', data);
       }
-
-      // Add clustered GeoJSON source
-      this.map!.addSource('colruyt-stores', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-        cluster: true,
-        clusterMaxZoom: 12,
-        clusterRadius: 30
-      });
-
-      // Cluster circles
-      this.map!.addLayer({
-        id: 'clusters',
-        type: 'circle',
-        source: 'colruyt-stores',
-        filter: ['has', 'point_count'],
-        paint: {
-          'circle-color': '#e8751a',
-          'circle-radius': ['step', ['get', 'point_count'], 18, 10, 24, 50, 32],
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#fff'
-        }
-      });
-
-      // Cluster count labels
-      this.map!.addLayer({
-        id: 'cluster-count',
-        type: 'symbol',
-        source: 'colruyt-stores',
-        filter: ['has', 'point_count'],
-        layout: {
-          'text-field': '{point_count_abbreviated}',
-          'text-size': 13
-        },
-        paint: {
-          'text-color': '#ffffff'
-        }
-      });
-
-      // Individual store pins
+      // Replace circle layer with icon layer
+      this.map!.removeLayer('unclustered-point');
       this.map!.addLayer({
         id: 'unclustered-point',
         type: 'symbol',
@@ -163,37 +180,36 @@ export class MapService {
           'icon-allow-overlap': true
         }
       });
+    }).catch(err => {
+      console.warn('Could not load colruyt_pin.png, using circle fallback', err);
+    });
 
-      this.sourceReady = true;
-      this.updateSource();
-
-      // Click on cluster → zoom in
-      this.map!.on('click', 'clusters', (e) => {
-        const features = this.map!.queryRenderedFeatures(e.point, { layers: ['clusters'] });
-        const clusterId = features[0].properties['cluster_id'];
-        (this.map!.getSource('colruyt-stores') as GeoJSONSource).getClusterExpansionZoom(clusterId).then(zoom => {
-          this.map!.easeTo({
-            center: (features[0].geometry as any).coordinates,
-            zoom
-          });
+    // Click on cluster → zoom in
+    this.map.on('click', 'clusters', (e) => {
+      const features = this.map!.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+      const clusterId = features[0].properties['cluster_id'];
+      (this.map!.getSource('colruyt-stores') as GeoJSONSource).getClusterExpansionZoom(clusterId).then(zoom => {
+        this.map!.easeTo({
+          center: (features[0].geometry as any).coordinates,
+          zoom
         });
       });
-
-      // Click on individual store → flyTo
-      this.map!.on('click', 'unclustered-point', (e) => {
-        const coords = (e.features![0].geometry as any).coordinates;
-        const location = this.locations().find(l =>
-          Math.abs(l.longitude - coords[0]) < 0.0001 && Math.abs(l.latitude - coords[1]) < 0.0001
-        );
-        if (location) this.flyTo(location);
-      });
-
-      // Cursor pointer on hover
-      this.map!.on('mouseenter', 'clusters', () => this.map!.getCanvas().style.cursor = 'pointer');
-      this.map!.on('mouseleave', 'clusters', () => this.map!.getCanvas().style.cursor = '');
-      this.map!.on('mouseenter', 'unclustered-point', () => this.map!.getCanvas().style.cursor = 'pointer');
-      this.map!.on('mouseleave', 'unclustered-point', () => this.map!.getCanvas().style.cursor = '');
     });
+
+    // Click on individual store → flyTo
+    this.map.on('click', 'unclustered-point', (e) => {
+      const coords = (e.features![0].geometry as any).coordinates;
+      const location = this.locations().find(l =>
+        Math.abs(l.longitude - coords[0]) < 0.0001 && Math.abs(l.latitude - coords[1]) < 0.0001
+      );
+      if (location) this.flyTo(location);
+    });
+
+    // Cursor pointer on hover
+    this.map.on('mouseenter', 'clusters', () => this.map!.getCanvas().style.cursor = 'pointer');
+    this.map.on('mouseleave', 'clusters', () => this.map!.getCanvas().style.cursor = '');
+    this.map.on('mouseenter', 'unclustered-point', () => this.map!.getCanvas().style.cursor = 'pointer');
+    this.map.on('mouseleave', 'unclustered-point', () => this.map!.getCanvas().style.cursor = '');
   }
 
   private updateSource() {
