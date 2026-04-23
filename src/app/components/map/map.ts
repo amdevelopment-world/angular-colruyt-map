@@ -16,7 +16,7 @@ export class MapComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.map = new Map({
       container: this.mapContainer().nativeElement,
-      style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+      style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
       center: this.mapService.center(),
       zoom: this.mapService.zoom()
     });

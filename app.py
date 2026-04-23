@@ -1,11 +1,20 @@
 from flask import Flask, jsonify, send_from_directory
 import requests
 import os
+import time
 
 app = Flask(__name__, static_folder='dist/angular/browser')
 
+# Cache the Overpass API response (Colruyt locations don't change often)
+cache = {'data': None, 'timestamp': 0}
+CACHE_TTL = 3600  # 1 hour
+
 @app.route('/api/getColruytLocations')
 def get_colruyt_locations():
+    # Return cached data if still fresh
+    if cache['data'] and (time.time() - cache['timestamp']) < CACHE_TTL:
+        return jsonify(cache['data'])
+
     query = '[out:json];area["ISO3166-1"="BE"][admin_level=2]->.searchArea;(node["brand"="Colruyt"](area.searchArea);way["brand"="Colruyt"](area.searchArea);relation["brand"="Colruyt"](area.searchArea););out center;'
     try:
         response = requests.post(
@@ -41,10 +50,16 @@ def get_colruyt_locations():
                 }
             })
             
-        return jsonify({
+        geojson = {
             'type': 'FeatureCollection',
             'features': features
-        })
+        }
+        
+        # Cache the result
+        cache['data'] = geojson
+        cache['timestamp'] = time.time()
+        
+        return jsonify(geojson)
     except Exception as e:
         app.logger.error(f"Overpass API error: {e}")
         return jsonify({"error": str(e)}), 500

@@ -27,24 +27,56 @@ export class MapService {
   }
 
   async loadColruytLocations() {
+    const CACHE_KEY = 'colruyt_locations';
+    const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+    // Try loading from localStorage first
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      const { timestamp, locations } = JSON.parse(cached);
+      if (Date.now() - timestamp < CACHE_TTL) {
+        this.locations.set(locations);
+        if (this.map) this.addMarkers();
+        return;
+      }
+    }
+
+    // Cache expired or missing — fetch from Overpass API
+    const query = '[out:json];area["ISO3166-1"="BE"][admin_level=2]->.searchArea;(node["brand"="Colruyt"](area.searchArea);way["brand"="Colruyt"](area.searchArea);relation["brand"="Colruyt"](area.searchArea););out center;';
     try {
-      const response = await fetch('/api/getColruytLocations');
+      const response = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: `data=${encodeURIComponent(query)}`,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
       if (response.ok) {
-        const geoJson = await response.json();
-        const loadedLocations = geoJson.features.map((f: any) => ({
-          name: f.properties.name || 'Colruyt',
-          longitude: f.geometry.coordinates[0],
-          latitude: f.geometry.coordinates[1],
-          description: [f.properties.street, f.properties.city].filter(Boolean).join(', ') || 'Colruyt Store'
-        }));
+        const data = await response.json();
+        const loadedLocations = data.elements
+          .map((el: any) => {
+            const lat = el.lat || el.center?.lat;
+            const lon = el.lon || el.center?.lon;
+            if (!lat || !lon) return null;
+            return {
+              name: el.tags?.name || 'Colruyt',
+              longitude: lon,
+              latitude: lat,
+              description: [el.tags?.['addr:street'], el.tags?.['addr:city']].filter(Boolean).join(', ') || 'Colruyt Store'
+            };
+          })
+          .filter((l: any) => l !== null);
         this.locations.set(loadedLocations);
+
+        // Save to localStorage
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          timestamp: Date.now(),
+          locations: loadedLocations
+        }));
         
-        // If map is already loaded, add the markers now
         if (this.map) {
           this.addMarkers();
         }
       } else {
-        console.error('API Error:', response.statusText);
+        console.error('Overpass API Error:', response.status, response.statusText);
       }
     } catch (e) {
       console.error('Failed to load Colruyt locations', e);
