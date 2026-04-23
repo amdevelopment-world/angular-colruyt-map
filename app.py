@@ -6,18 +6,17 @@ app = Flask(__name__, static_folder='dist/angular/browser')
 
 @app.route('/api/getColruytLocations')
 def get_colruyt_locations():
-    query = """
-        [out:json];
-        area["ISO3166-1"="BE"][admin_level=2]->.searchArea;
-        (
-          node["brand"="Colruyt"](area.searchArea);
-          way["brand"="Colruyt"](area.searchArea);
-          relation["brand"="Colruyt"](area.searchArea);
-        );
-        out center;
-    """
+    query = '[out:json];area["ISO3166-1"="BE"][admin_level=2]->.searchArea;(node["brand"="Colruyt"](area.searchArea);way["brand"="Colruyt"](area.searchArea);relation["brand"="Colruyt"](area.searchArea););out center;'
     try:
-        response = requests.post('https://overpass-api.de/api/interpreter', data=query)
+        response = requests.post(
+            'https://overpass-api.de/api/interpreter',
+            data={'data': query},
+            headers={
+                'Accept': 'application/json',
+                'User-Agent': 'ColruytMap/1.0'
+            },
+            timeout=30
+        )
         response.raise_for_status()
         data = response.json()
         
@@ -47,6 +46,7 @@ def get_colruyt_locations():
             'features': features
         })
     except Exception as e:
+        app.logger.error(f"Overpass API error: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Serve Angular static files
