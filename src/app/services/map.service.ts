@@ -1,5 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { Map, Marker, LngLat, LngLatBounds } from 'maplibre-gl';
+import { Map, Marker, LngLat, LngLatBounds, GeoJSONSource } from 'maplibre-gl';
 
 export type LocationType = 'store' | 'distribution';
 
@@ -16,7 +16,7 @@ export interface MapLocation {
 })
 export class MapService {
   private map: Map | null = null;
-  private markers: Marker[] = [];
+  private sourceReady = false;
 
   readonly selectedLocation = signal<MapLocation | null>(null);
   readonly zoom = signal(7);
@@ -55,9 +55,9 @@ export class MapService {
             type: 'store' as LocationType
           }));
         this.locations.set(loadedLocations);
-        
+
         if (this.map) {
-          this.addMarkers();
+          this.updateSource();
         }
       } else {
         console.error('Colruyt API Error:', response.status, response.statusText);
@@ -69,7 +69,7 @@ export class MapService {
 
   setMap(instance: Map) {
     this.map = instance;
-    this.addMarkers();
+    this.setupClustering();
     this.updateBounds();
     this.map.on('moveend', () => this.updateBounds());
   }
@@ -99,37 +99,115 @@ export class MapService {
   }
 
   setStyle(styleUrl: string) {
-    this.clearMarkers();
+    this.sourceReady = false;
     this.map!.setStyle(styleUrl);
-    this.map!.once('styledata', () => this.addMarkers());
+    this.map!.once('styledata', () => this.setupClustering());
   }
 
-  private addMarkers() {
-    this.clearMarkers();
+  private setupClustering() {
+    if (!this.map) return;
 
-    for (const location of this.locations()) {
-      const el = document.createElement('img');
-      el.src = 'colruyt_pin.png';
-      el.style.width = '32px';
-      el.style.height = '32px';
-      el.style.cursor = 'pointer';
+    // Load the Colruyt pin image
+    this.map.loadImage('/colruyt_pin.png').then(({ data }) => {
+      if (!this.map!.hasImage('colruyt-pin')) {
+        this.map!.addImage('colruyt-pin', data);
+      }
 
-      const marker = new Marker({ element: el })
-        .setLngLat([location.longitude, location.latitude])
-        .addTo(this.map!);
-
-      el.addEventListener('click', () => {
-        this.flyTo(location);
+      // Add clustered GeoJSON source
+      this.map!.addSource('colruyt-stores', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+        cluster: true,
+        clusterMaxZoom: 12,
+        clusterRadius: 30
       });
 
-      this.markers.push(marker);
-    }
+      // Cluster circles
+      this.map!.addLayer({
+        id: 'clusters',
+        type: 'circle',
+        source: 'colruyt-stores',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': '#e8751a',
+          'circle-radius': ['step', ['get', 'point_count'], 18, 10, 24, 50, 32],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff'
+        }
+      });
+
+      // Cluster count labels
+      this.map!.addLayer({
+        id: 'cluster-count',
+        type: 'symbol',
+        source: 'colruyt-stores',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': '{point_count_abbreviated}',
+          'text-size': 13
+        },
+        paint: {
+          'text-color': '#ffffff'
+        }
+      });
+
+      // Individual store pins
+      this.map!.addLayer({
+        id: 'unclustered-point',
+        type: 'symbol',
+        source: 'colruyt-stores',
+        filter: ['!', ['has', 'point_count']],
+        layout: {
+          'icon-image': 'colruyt-pin',
+          'icon-size': 0.7,
+          'icon-allow-overlap': true
+        }
+      });
+
+      this.sourceReady = true;
+      this.updateSource();
+
+      // Click on cluster → zoom in
+      this.map!.on('click', 'clusters', (e) => {
+        const features = this.map!.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+        const clusterId = features[0].properties['cluster_id'];
+        (this.map!.getSource('colruyt-stores') as GeoJSONSource).getClusterExpansionZoom(clusterId).then(zoom => {
+          this.map!.easeTo({
+            center: (features[0].geometry as any).coordinates,
+            zoom
+          });
+        });
+      });
+
+      // Click on individual store → flyTo
+      this.map!.on('click', 'unclustered-point', (e) => {
+        const coords = (e.features![0].geometry as any).coordinates;
+        const location = this.locations().find(l =>
+          Math.abs(l.longitude - coords[0]) < 0.0001 && Math.abs(l.latitude - coords[1]) < 0.0001
+        );
+        if (location) this.flyTo(location);
+      });
+
+      // Cursor pointer on hover
+      this.map!.on('mouseenter', 'clusters', () => this.map!.getCanvas().style.cursor = 'pointer');
+      this.map!.on('mouseleave', 'clusters', () => this.map!.getCanvas().style.cursor = '');
+      this.map!.on('mouseenter', 'unclustered-point', () => this.map!.getCanvas().style.cursor = 'pointer');
+      this.map!.on('mouseleave', 'unclustered-point', () => this.map!.getCanvas().style.cursor = '');
+    });
   }
 
-  private clearMarkers() {
-    for (const marker of this.markers) {
-      marker.remove();
-    }
-    this.markers = [];
+  private updateSource() {
+    if (!this.map || !this.sourceReady) return;
+
+    const geojson: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: this.locations().map(l => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [l.longitude, l.latitude] },
+        properties: { name: l.name, description: l.description, type: l.type }
+      }))
+    };
+
+    (this.map.getSource('colruyt-stores') as GeoJSONSource).setData(geojson);
   }
 }
