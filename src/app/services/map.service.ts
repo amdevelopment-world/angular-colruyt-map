@@ -184,15 +184,15 @@ export class MapService {
       console.warn('Could not load colruyt_pin.png, using circle fallback', err);
     });
 
-    // Click on cluster → zoom in
+    // Click on cluster → zoom in towards it
     this.map.on('click', 'clusters', (e) => {
-      const features = this.map!.queryRenderedFeatures(e.point, { layers: ['clusters'] });
-      const clusterId = features[0].properties['cluster_id'];
-      (this.map!.getSource('colruyt-stores') as GeoJSONSource).getClusterExpansionZoom(clusterId).then(zoom => {
-        this.map!.easeTo({
-          center: (features[0].geometry as any).coordinates,
-          zoom
-        });
+      const feature = e.features?.[0];
+      if (!feature) return;
+      const coords = (feature.geometry as any).coordinates;
+      this.map!.easeTo({
+        center: coords,
+        zoom: this.map!.getZoom() + 3,
+        duration: 500
       });
     });
 

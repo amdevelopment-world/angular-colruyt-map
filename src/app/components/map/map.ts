@@ -21,6 +21,10 @@ export class MapComponent implements OnInit, OnDestroy {
       zoom: this.mapService.zoom()
     });
 
+    this.map.on('style.load', () => {
+      this.map.setProjection({ type: 'globe' });
+    });
+
     this.map.on('load', () => {
       this.mapService.setMap(this.map);
     });
