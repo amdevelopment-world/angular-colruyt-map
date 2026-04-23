@@ -1,7 +1,7 @@
 <div class="location-list">
-  <h3>Locations ({{ mapService.locationCount() }})</h3>
+  <h3>Visible ({{ mapService.locationCount() }})</h3>
 
-  @for (location of mapService.locations(); track location.name; let i = $index) {
+  @for (location of mapService.visibleLocations(); track location.name; let i = $index) {
     <div
       class="location-item"
       [class.selected]="isSelected(location)"

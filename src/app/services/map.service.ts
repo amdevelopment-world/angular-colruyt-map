@@ -1,5 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { Map, Marker, LngLat } from 'maplibre-gl';
+import { Map, Marker, LngLat, LngLatBounds } from 'maplibre-gl';
 
 export type LocationType = 'store' | 'distribution';
 
@@ -22,8 +22,18 @@ export class MapService {
   readonly zoom = signal(7);
   readonly center = signal<[number, number]>([4.4699, 50.5039]); // Centered on Belgium
   readonly locations = signal<MapLocation[]>([]);
+  private readonly bounds = signal<LngLatBounds | null>(null);
 
-  readonly locationCount = computed(() => this.locations().length);
+  readonly visibleLocations = computed(() => {
+    const b = this.bounds();
+    if (!b) return this.locations();
+    return this.locations().filter(l =>
+      l.longitude >= b.getWest() && l.longitude <= b.getEast() &&
+      l.latitude >= b.getSouth() && l.latitude <= b.getNorth()
+    );
+  });
+
+  readonly locationCount = computed(() => this.visibleLocations().length);
 
   constructor() {
     this.loadColruytLocations();
@@ -80,6 +90,14 @@ export class MapService {
   setMap(instance: Map) {
     this.map = instance;
     this.addMarkers();
+    this.updateBounds();
+    this.map.on('moveend', () => this.updateBounds());
+  }
+
+  private updateBounds() {
+    if (this.map) {
+      this.bounds.set(this.map.getBounds());
+    }
   }
 
   flyTo(location: MapLocation) {
